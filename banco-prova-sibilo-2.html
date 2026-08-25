@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Banco di prova — rilevatore di sibilo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;600;700&display=swap');
+
+  :root{
+    --petrol:#152528;
+    --panel:#1E3438;
+    --panel-hi:#274449;
+    --line:#33565C;
+    --bone:#EAE4D6;
+    --muted:#7C9599;
+    --amber:#E0A03C;
+    --hot:#F2603C;
+    --sans:"IBM Plex Sans Condensed", "Helvetica Neue", Arial, sans-serif;
+    --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+  body{
+    margin:0;
+    padding:20px 16px 48px;
+    background:var(--petrol);
+    color:var(--bone);
+    font-family:var(--sans);
+    max-width:520px;
+    margin-inline:auto;
+  }
+
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+
+  h1{
+    font-size:27px;
+    font-weight:700;
+    line-height:1.05;
+    margin:6px 0 10px;
+    letter-spacing:-.01em;
+  }
+
+  .lede{font-size:14.5px;line-height:1.5;color:var(--muted);margin:0 0 22px}
+  .lede b{color:var(--bone);font-weight:600}
+
+  /* ---- pulsante principale ---- */
+  #power{
+    width:100%;
+    padding:20px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    background:var(--panel);
+    color:var(--bone);
+    font-family:var(--mono);
+    font-size:17px;
+    font-weight:600;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition:background .15s, border-color .15s;
+  }
+  #power:active{background:var(--panel-hi)}
+  #power.live{border-color:var(--amber);color:var(--amber)}
+  #power:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+
+  /* ---- strumento ---- */
+  .instrument{
+    margin-top:20px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    background:var(--panel);
+    overflow:hidden;
+    opacity:.4;
+    transition:opacity .3s;
+  }
+  .instrument.live{opacity:1}
+
+  .scope-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:10px 12px 6px;
+  }
+  .scope-head span{
+    font-family:var(--mono);
+    font-size:9.5px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .scope-head span.band{color:var(--amber)}
+
+  canvas{display:block;width:100%;height:132px}
+
+  .axis{
+    display:flex;
+    justify-content:space-between;
+    padding:4px 12px 12px;
+    font-family:var(--mono);
+    font-size:9.5px;
+    color:var(--muted);
+  }
+
+  /* ---- misuratore ---- */
+  .meter-wrap{border-top:1px solid var(--line);padding:14px 12px}
+  .meter{
+    position:relative;
+    height:26px;
+    background:#12211F;
+    border:1px solid var(--line);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  #bar{
+    position:absolute;inset:0 auto 0 0;
+    width:0%;
+    background:var(--amber);
+    opacity:.55;
+    transition:width .05s linear;
+  }
+  #bar.over{background:var(--hot);opacity:.85}
+  #thresh{
+    position:absolute;top:-2px;bottom:-2px;
+    width:2px;
+    left:50%;
+    background:var(--bone);
+  }
+  .readouts{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+    margin-top:12px;
+  }
+  .readout{border-left:2px solid var(--line);padding-left:8px}
+  .readout dt{
+    font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--muted);margin:0;
+  }
+  .readout dd{
+    font-family:var(--mono);font-size:16px;font-weight:500;
+    margin:2px 0 0;font-variant-numeric:tabular-nums;
+  }
+
+  /* ---- stato ---- */
+  #status{
+    border-top:1px solid var(--line);
+    padding:16px 12px;
+    font-family:var(--mono);
+    font-size:13px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--muted);
+    transition:background .1s,color .1s;
+  }
+  #status.hit{background:var(--hot);color:#152528;font-weight:600}
+  #status.err{color:var(--hot);text-transform:none;letter-spacing:0;line-height:1.5}
+
+  /* ---- comandi ---- */
+  h2{
+    font-size:11px;font-family:var(--mono);letter-spacing:.2em;
+    text-transform:uppercase;color:var(--muted);
+    margin:30px 0 10px;font-weight:400;
+  }
+
+  .switch{
+    display:flex;align-items:flex-start;gap:12px;
+    padding:13px 0;border-bottom:1px solid var(--panel-hi);
+    cursor:pointer;
+  }
+  .switch input{
+    appearance:none;flex:0 0 auto;margin:2px 0 0;
+    width:17px;height:17px;border:1px solid var(--muted);border-radius:2px;
+    cursor:pointer;position:relative;background:transparent;
+  }
+  .switch input:checked{background:var(--amber);border-color:var(--amber)}
+  .switch input:checked::after{
+    content:"";position:absolute;left:5px;top:1px;
+    width:4px;height:9px;border:solid #152528;border-width:0 2px 2px 0;
+    transform:rotate(43deg);
+  }
+  .switch input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  .switch .txt{font-size:14.5px;line-height:1.3}
+  .switch .hint{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+
+  .slider{padding:15px 0 5px;border-bottom:1px solid var(--panel-hi)}
+  .slider .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+  .slider label{font-size:14.5px}
+  .slider output{font-family:var(--mono);font-size:13px;color:var(--amber);font-variant-numeric:tabular-nums}
+  input[type=range]{
+    appearance:none;width:100%;height:22px;background:transparent;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--line)}
+  input[type=range]::-moz-range-track{height:2px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{
+    appearance:none;width:19px;height:19px;margin-top:-9px;border-radius:50%;
+    background:var(--amber);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:19px;height:19px;border:0;border-radius:50%;background:var(--amber);
+  }
+
+  #log{
+    list-style:none;margin:10px 0 0;padding:0;
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+  }
+  #log li{
+    padding:7px 0;border-bottom:1px solid var(--panel-hi);
+    display:flex;justify-content:space-between;
+  }
+  #log li b{color:var(--amber);font-weight:500}
+  #log .empty{color:var(--muted);border:0;padding-top:4px}
+
+  .note{
+    margin-top:26px;padding-top:16px;border-top:1px solid var(--panel-hi);
+    font-size:13px;line-height:1.55;color:var(--muted);
+  }
+  .note b{color:var(--bone);font-weight:600}
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none !important}
+  }
+</style>
+</head>
+<body>
+
+<p class="eyebrow">Banco di prova · 001</p>
+<h1>Rilevatore di sibilo</h1>
+<p class="lede">Stessa logica del codice Android: doppio passa&#8209;alto a&nbsp;6&nbsp;kHz, soglia adattiva, filtro sulla durata. Metti il telefono <b>in vivavoce sul tavolo</b>, avvia, e sibila da mezzo metro.</p>
+
+<button id="power">Avvio</button>
+
+<div class="instrument" id="instrument">
+  <div class="scope-head">
+    <span>Spettro del microfono</span>
+    <span class="band">Banda utile &ge; 6 kHz</span>
+  </div>
+  <canvas id="scope"></canvas>
+  <div class="axis"><span>0</span><span>6 kHz</span><span>14 kHz</span></div>
+
+  <div class="meter-wrap">
+    <div class="meter">
+      <div id="bar"></div>
+      <div id="thresh"></div>
+    </div>
+    <dl class="readouts">
+      <div class="readout"><dt>Livello</dt><dd id="rLevel">—</dd></div>
+      <div class="readout"><dt>Soglia</dt><dd id="rThresh">—</dd></div>
+      <div class="readout"><dt>Fondo</dt><dd id="rFloor">—</dd></div>
+    </dl>
+  </div>
+
+  <div id="status">Fermo</div>
+</div>
+
+<h2>Esperimento</h2>
+
+<label class="switch">
+  <input type="checkbox" id="cbMusic" checked>
+  <span class="txt">Canzone in loop
+    <span class="hint">Accordi, basso e charleston, sintetizzati qui.</span>
+  </span>
+</label>
+
+<label class="switch">
+  <input type="checkbox" id="cbLowpass" checked>
+  <span class="txt">Passa-basso 5 kHz sulla canzone
+    <span class="hint">Spegnilo: il charleston entra nella banda utile e il rilevatore inizia a scattare da solo. È il motivo per cui la canzone va filtrata prima di metterla nell&rsquo;app.</span>
+  </span>
+</label>
+
+<h2>Taratura</h2>
+
+<div class="slider">
+  <div class="row"><label for="sSens">Sensibilità</label><output id="oSens">5.0×</output></div>
+  <input type="range" id="sSens" min="20" max="100" value="50">
+</div>
+
+<div class="slider">
+  <div class="row"><label for="sDur">Durata minima del sibilo</label><output id="oDur">300 ms</output></div>
+  <input type="range" id="sDur" min="100" max="700" step="25" value="300">
+</div>
+
+<h2>Rilevamenti</h2>
+<ul id="log"><li class="empty">Nessuno finora.</li></ul>
+
+<p class="note"><b>Cosa stai provando davvero.</b> Se qui il sibilo passa e la musica no, l&rsquo;idea regge e il codice Kotlin si comporterà allo stesso modo — anzi meglio, perché lì il microfono non passa attraverso l&rsquo;elaborazione del browser. I valori di sensibilità e durata che trovi qui si riportano tali e quali in <span style="font-family:var(--mono);font-size:12px">HissDetector</span> come <span style="font-family:var(--mono);font-size:12px">TRIGGER_RATIO</span> e <span style="font-family:var(--mono);font-size:12px">FRAMES_TO_TRIGGER</span>.</p>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- costanti (rispecchiano HissDetector.kt) ----------
+  var CUTOFF_HZ     = 6000;
+  var ABSOLUTE_FLOOR= 0.0011;   // soglia minima assoluta, RMS lineare
+  var COOLDOWN_MS   = 1800;
+  var SUPPRESS_MS   = 1200;     // sordina mentre suona la risposta
+  var FLOOR_ADAPT   = 0.012;
+  var SCOPE_MAX_HZ  = 14000;
+
+  var triggerRatio = 5.0;
+  var minDurMs     = 300;
+
+  // ---------- stato ----------
+  var ctx=null, stream=null, running=false;
+  var rawAnalyser=null, detAnalyser=null, detBuf=null, spectrumBuf=null;
+  var musicBus=null, lp1=null, lp2=null, masterOut=null;
+  var schedTimer=null, nextNoteTime=0, step=0;
+  var noiseBuffer=null;
+  var floorLvl=0.0015, aboveMs=0, lastFrame=0, lastTrigger=0, suppressUntil=0;
+  var hits=0, rafId=null;
+  var lowpassOn=true, musicOn=true;
+
+  // ---------- elementi ----------
+  var elPower=document.getElementById("power");
+  var elInstr=document.getElementById("instrument");
+  var elStatus=document.getElementById("status");
+  var elBar=document.getElementById("bar");
+  var elThresh=document.getElementById("thresh");
+  var elLevel=document.getElementById("rLevel");
+  var elTh=document.getElementById("rThresh");
+  var elFloor=document.getElementById("rFloor");
+  var elLog=document.getElementById("log");
+  var cv=document.getElementById("scope"), g=cv.getContext("2d");
+
+  var css=getComputedStyle(document.documentElement);
+  var C={
+    amber:css.getPropertyValue("--amber").trim()||"#E0A03C",
+    hot:css.getPropertyValue("--hot").trim()||"#F2603C",
+    line:css.getPropertyValue("--line").trim()||"#33565C",
+    muted:css.getPropertyValue("--muted").trim()||"#7C9599",
+    panelHi:css.getPropertyValue("--panel-hi").trim()||"#274449"
+  };
+
+  // ---------- canvas ----------
+  var W=0,H=0;
+  function sizeCanvas(){
+    var dpr=Math.min(window.devicePixelRatio||1,2);
+    W=cv.clientWidth; H=cv.clientHeight;
+    cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+    g.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener("resize",sizeCanvas);
+  sizeCanvas();
+  drawIdle();
+
+  function drawIdle(){
+    g.clearRect(0,0,W,H);
+    g.strokeStyle=C.panelHi; g.lineWidth=1;
+    g.beginPath(); g.moveTo(0,H-.5); g.lineTo(W,H-.5); g.stroke();
+  }
+
+  // ---------- audio: sorgenti di comodo ----------
+  function makeNoise(){
+    var len=Math.floor(ctx.sampleRate*0.5);
+    var b=ctx.createBuffer(1,len,ctx.sampleRate);
+    var d=b.getChannelData(0);
+    for(var i=0;i<len;i++) d[i]=Math.random()*2-1;
+    return b;
+  }
+
+  // Progressione di quattro accordi, due secondi ciascuno.
+  var CHORDS=[
+    [110.00,[220.00,261.63,329.63]], // La minore
+    [87.31, [174.61,220.00,261.63]], // Fa maggiore
+    [130.81,[196.00,261.63,329.63]], // Do maggiore
+    [98.00, [196.00,246.94,293.66]]  // Sol maggiore
+  ];
+
+  function playChord(t,idx){
+    var ch=CHORDS[idx%CHORDS.length];
+    var dur=2.0;
+
+    var bass=ctx.createOscillator(), bg=ctx.createGain();
+    bass.type="triangle"; bass.frequency.value=ch[0];
+    bg.gain.setValueAtTime(0,t);
+    bg.gain.linearRampToValueAtTime(0.30,t+0.03);
+    bg.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    bass.connect(bg).connect(musicBus);
+    bass.start(t); bass.stop(t+dur+0.05);
+
+    for(var i=0;i<3;i++){
+      var o=ctx.createOscillator(), gg=ctx.createGain(), f=ctx.createBiquadFilter();
+      o.type="sawtooth"; o.frequency.value=ch[1][i];
+      o.detune.value=(i-1)*5;
+      f.type="lowpass"; f.frequency.value=1400; f.Q.value=0.6;
+      gg.gain.setValueAtTime(0,t);
+      gg.gain.linearRampToValueAtTime(0.075,t+0.12);
+      gg.gain.setValueAtTime(0.075,t+dur-0.35);
+      gg.gain.exponentialRampToValueAtTime(0.001,t+dur);
+      o.connect(f).connect(gg).connect(musicBus);
+      o.start(t); o.stop(t+dur+0.05);
+    }
+  }
+
+  // Il charleston è il finto sibilo: rumore sopra gli 8 kHz.
+  function playHat(t,accent){
+    var s=ctx.createBufferSource(); s.buffer=noiseBuffer;
+    var hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=8000;
+    var gg=ctx.createGain();
+    var peak=accent?0.13:0.06;
+    gg.gain.setValueAtTime(peak,t);
+    gg.gain.exponentialRampToValueAtTime(0.0005,t+0.055);
+    s.connect(hp).connect(gg).connect(musicBus);
+    s.start(t); s.stop(t+0.1);
+  }
+
+  function scheduler(){
+    var ahead=0.25;
+    while(nextNoteTime < ctx.currentTime + ahead){
+      if(musicOn){
+        if(step%8===0) playChord(nextNoteTime, step/8);
+        playHat(nextNoteTime, step%4===0);
+      }
+      nextNoteTime += 0.25;
+      step = (step+1)%32;
+    }
+  }
+
+  // Sonaglio di risposta: banda piena, quindi il rilevatore va messo in sordina.
+  function playResponse(){
+    var t=ctx.currentTime;
+    for(var i=0;i<7;i++){
+      var s=ctx.createBufferSource(); s.buffer=noiseBuffer;
+      var bp=ctx.createBiquadFilter();
+      bp.type="bandpass"; bp.frequency.value=2600+i*130; bp.Q.value=2.2;
+      var gg=ctx.createGain();
+      var tt=t+i*0.045;
+      gg.gain.setValueAtTime(0.30,tt);
+      gg.gain.exponentialRampToValueAtTime(0.0008,tt+0.05);
+      s.connect(bp).connect(gg).connect(masterOut);
+      s.start(tt); s.stop(tt+0.09);
+    }
+    suppressUntil=performance.now()+SUPPRESS_MS;
+  }
+
+  // ---------- instradamento della musica ----------
+  function routeMusic(){
+    try{ musicBus.disconnect(); }catch(e){}
+    try{ lp2.disconnect(); }catch(e){}
+    if(lowpassOn){ musicBus.connect(lp1); lp2.connect(masterOut); }
+    else { musicBus.connect(masterOut); }
+  }
+
+  // ---------- avvio ----------
+  function start(){
+    var AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC){ fail("Questo browser non supporta Web Audio."); return; }
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+      fail("Questo browser non dà accesso al microfono."); return;
+    }
+
+    ctx=new AC();
+    setStatus("Chiedo il microfono…","");
+
+    navigator.mediaDevices.getUserMedia({audio:{
+      echoCancellation:false,   // l'AEC taglierebbe proprio le alte frequenze
+      noiseSuppression:false,   // la soppressione rumore cancella il sibilo
+      autoGainControl:false,
+      channelCount:1
+    }}).then(function(s){
+      stream=s;
+      buildGraph();
+      running=true;
+      elPower.textContent="Stop";
+      elPower.classList.add("live");
+      elInstr.classList.add("live");
+      setStatus("In ascolto","");
+      lastFrame=performance.now();
+      rafId=requestAnimationFrame(tick);
+    }).catch(function(err){
+      var msg="Microfono non disponibile.";
+      if(err && (err.name==="NotAllowedError"||err.name==="SecurityError")){
+        msg="Permesso microfono negato. Concedilo dalle impostazioni del sito, oppure apri questa pagina in una scheda del browser anziché dentro un riquadro.";
+      } else if(err && err.name==="NotFoundError"){
+        msg="Nessun microfono trovato.";
+      }
+      fail(msg);
+    });
+  }
+
+  function buildGraph(){
+    noiseBuffer=makeNoise();
+
+    masterOut=ctx.createGain(); masterOut.gain.value=0.9;
+    masterOut.connect(ctx.destination);
+
+    musicBus=ctx.createGain(); musicBus.gain.value=1.0;
+
+    lp1=ctx.createBiquadFilter(); lp1.type="lowpass"; lp1.frequency.value=5000; lp1.Q.value=0.707;
+    lp2=ctx.createBiquadFilter(); lp2.type="lowpass"; lp2.frequency.value=5000; lp2.Q.value=0.707;
+    lp1.connect(lp2);
+    routeMusic();
+
+    var src=ctx.createMediaStreamSource(stream);
+
+    rawAnalyser=ctx.createAnalyser();
+    rawAnalyser.fftSize=2048;
+    rawAnalyser.smoothingTimeConstant=0.55;
+    src.connect(rawAnalyser);
+    spectrumBuf=new Uint8Array(rawAnalyser.frequencyBinCount);
+
+    var hp1=ctx.createBiquadFilter(); hp1.type="highpass"; hp1.frequency.value=CUTOFF_HZ; hp1.Q.value=0.707;
+    var hp2=ctx.createBiquadFilter(); hp2.type="highpass"; hp2.frequency.value=CUTOFF_HZ; hp2.Q.value=0.707;
+    detAnalyser=ctx.createAnalyser();
+    detAnalyser.fftSize=1024;
+    detAnalyser.smoothingTimeConstant=0;
+    src.connect(hp1); hp1.connect(hp2); hp2.connect(detAnalyser);
+    detBuf=new Float32Array(detAnalyser.fftSize);
+
+    floorLvl=0.0015; aboveMs=0; lastTrigger=0; suppressUntil=0;
+
+    nextNoteTime=ctx.currentTime+0.1; step=0;
+    schedTimer=setInterval(scheduler,40);
+  }
+
+  function stop(){
+    running=false;
+    if(rafId) cancelAnimationFrame(rafId), rafId=null;
+    if(schedTimer) clearInterval(schedTimer), schedTimer=null;
+    if(stream) stream.getTracks().forEach(function(t){t.stop();}), stream=null;
+    if(ctx) ctx.close(), ctx=null;
+    elPower.textContent="Avvio";
+    elPower.classList.remove("live");
+    elInstr.classList.remove("live");
+    setStatus("Fermo","");
+    elLevel.textContent="—"; elTh.textContent="—"; elFloor.textContent="—";
+    elBar.style.width="0%"; elBar.classList.remove("over");
+    drawIdle();
+  }
+
+  function fail(msg){
+    setStatus(msg,"err");
+    elInstr.classList.add("live");
+    if(ctx){ try{ctx.close();}catch(e){} ctx=null; }
+    running=false;
+    elPower.textContent="Riprova";
+    elPower.classList.remove("live");
+  }
+
+  function setStatus(txt,cls){
+    elStatus.textContent=txt;
+    elStatus.className=cls||"";
+  }
+
+  // ---------- ciclo di rilevamento ----------
+  function db(x){ return 20*Math.log10(x+1e-9); }
+  function norm(d){ return Math.max(0,Math.min(1,(d+72)/62)); } // -72..-10 dB
+
+  function tick(now){
+    rafId=requestAnimationFrame(tick);
+    var dt=Math.min(now-lastFrame,100); lastFrame=now;
+
+    detAnalyser.getFloatTimeDomainData(detBuf);
+    var sum=0;
+    for(var i=0;i<detBuf.length;i++) sum+=detBuf[i]*detBuf[i];
+    var rms=Math.sqrt(sum/detBuf.length);
+
+    var threshold=Math.max(floorLvl*triggerRatio, ABSOLUTE_FLOOR);
+    var over=rms>threshold;
+
+    if(now<suppressUntil){
+      aboveMs=0;
+    } else if(over){
+      aboveMs+=dt;
+      if(aboveMs>=minDurMs && now-lastTrigger>COOLDOWN_MS){
+        lastTrigger=now; aboveMs=0;
+        onHiss(rms);
+      }
+    } else {
+      aboveMs=0;
+      floorLvl += FLOOR_ADAPT*(rms-floorLvl);
+    }
+
+    // lettura
+    elLevel.textContent=db(rms).toFixed(1)+" dB";
+    elTh.textContent=db(threshold).toFixed(1)+" dB";
+    elFloor.textContent=db(floorLvl).toFixed(1)+" dB";
+    elBar.style.width=(norm(db(rms))*100).toFixed(1)+"%";
+    elBar.classList.toggle("over",over);
+    elThresh.style.left=(norm(db(threshold))*100).toFixed(1)+"%";
+
+    drawSpectrum(over);
+  }
+
+  function onHiss(rms){
+    hits++;
+    playResponse();
+    setStatus("Sibilo — risposta in corso","hit");
+    setTimeout(function(){ if(running) setStatus("In ascolto",""); },1100);
+
+    if(elLog.querySelector(".empty")) elLog.innerHTML="";
+    var li=document.createElement("li");
+    var d=new Date();
+    li.innerHTML="<span>"+String(d.getHours()).padStart(2,"0")+":"
+      +String(d.getMinutes()).padStart(2,"0")+":"
+      +String(d.getSeconds()).padStart(2,"0")+"</span><b>"
+      +db(rms).toFixed(1)+" dB · #"+hits+"</b>";
+    elLog.insertBefore(li,elLog.firstChild);
+    while(elLog.children.length>8) elLog.removeChild(elLog.lastChild);
+  }
+
+  // ---------- spettro ----------
+  function drawSpectrum(over){
+    rawAnalyser.getByteFrequencyData(spectrumBuf);
+    var nyq=ctx.sampleRate/2;
+    var maxBin=Math.min(spectrumBuf.length, Math.floor(SCOPE_MAX_HZ/nyq*spectrumBuf.length));
+    var cutX=(CUTOFF_HZ/SCOPE_MAX_HZ)*W;
+
+    g.clearRect(0,0,W,H);
+
+    // zona di rilevamento
+    g.fillStyle="rgba(224,160,60,0.07)";
+    g.fillRect(cutX,0,W-cutX,H);
+
+    var bars=58, bw=W/bars;
+    for(var i=0;i<bars;i++){
+      var a=Math.floor(i/bars*maxBin), b=Math.floor((i+1)/bars*maxBin);
+      var peak=0;
+      for(var j=a;j<=b && j<maxBin;j++) if(spectrumBuf[j]>peak) peak=spectrumBuf[j];
+      var h=(peak/255)*(H-6);
+      var x=i*bw;
+      var inBand=(x+bw/2)>=cutX;
+      g.fillStyle = inBand ? (over?C.hot:C.amber) : C.line;
+      g.globalAlpha = inBand ? 0.92 : 0.75;
+      g.fillRect(x+0.5, H-h, Math.max(bw-1.5,1), h);
+    }
+    g.globalAlpha=1;
+
+    // confine dei 6 kHz
+    g.strokeStyle=over?C.hot:C.amber; g.lineWidth=1;
+    g.setLineDash([3,3]);
+    g.beginPath(); g.moveTo(cutX+.5,0); g.lineTo(cutX+.5,H); g.stroke();
+    g.setLineDash([]);
+
+    g.strokeStyle=C.panelHi;
+    g.beginPath(); g.moveTo(0,H-.5); g.lineTo(W,H-.5); g.stroke();
+  }
+
+  // ---------- comandi ----------
+  elPower.addEventListener("click",function(){
+    if(running) stop(); else start();
+  });
+
+  document.getElementById("cbMusic").addEventListener("change",function(){
+    musicOn=this.checked;
+  });
+
+  document.getElementById("cbLowpass").addEventListener("change",function(){
+    lowpassOn=this.checked;
+    if(running) routeMusic();
+  });
+
+  var sSens=document.getElementById("sSens"), oSens=document.getElementById("oSens");
+  sSens.addEventListener("input",function(){
+    triggerRatio=this.value/10;
+    oSens.textContent=triggerRatio.toFixed(1)+"×";
+  });
+
+  var sDur=document.getElementById("sDur"), oDur=document.getElementById("oDur");
+  sDur.addEventListener("input",function(){
+    minDurMs=+this.value;
+    oDur.textContent=minDurMs+" ms";
+  });
+
+  window.addEventListener("pagehide",function(){ if(running) stop(); });
+})();
+</script>
+</body>
+</html>
